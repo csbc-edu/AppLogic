@@ -72,7 +72,7 @@ internal class Program
         while (C >= fixedBudget && idx < numberOfNodes && branchStack.Count > 0)
         {
             idx++;
-            printStack(branchStack);
+            // printStack(branchStack);
             // pop current brunch and push 2 new branches
             var baseBrunch = branchStack.Pop();
 
@@ -94,7 +94,7 @@ internal class Program
                 }
 
                 upperReliabilityEstim1 = reliabilities.Average();
-                branchStack.Push(branch_1);
+                //branchStack.Push(branch_1);
             }
 
             //Console.WriteLine(idx);
@@ -119,7 +119,7 @@ internal class Program
 
 
                 // choose to push branch
-                if (Math.Max(lowerReliabilityEstimate1, lowerReliabilityEstimate2) >=
+                if (Math.Max(lowerReliabilityEstimate1, lowerReliabilityEstimate2) <=
                    Math.Min(upperReliabilityEstim1, upperReliabilityEstim2))
                 {
                     fixedBudget += additionalCost;
@@ -127,8 +127,6 @@ internal class Program
                 }
 
             }
-
-
         }
         return branchStack;
     }
