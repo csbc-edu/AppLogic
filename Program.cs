@@ -17,13 +17,17 @@ internal class Program
 
                 foreach (var chain in scheme.scheme.Values)
                 {
-                    //chain.AsParallel().ForAll(node => node.Reliability = node.CalculateNodeReliability(node.hasExtra ? 1 : 0));
-
-                    minReliableNodesInChains.Add(chain.MinBy(node => node.Reliability)!); // min for serial part
+                    minReliableNodesInChains.Add(chain.MinBy(node =>
+                    {
+                        var nodeIndex = chain.IndexOf(node);
+                        var bit = binaryConfig.ToArray()[nodeIndex];
+                        node.ReliabilityValue = bit == '0' ? node.Reliability : node.ReliabilityExtra;
+                        return node.ReliabilityValue;
+                    })!); // min for serial part
                 }
 
                 // calculate max chain reliability for scheme
-                var schemeReliability = minReliableNodesInChains.MaxBy(x => x.Reliability)!; // max for parallel part
+                var schemeReliability = minReliableNodesInChains.MaxBy(x => x.ReliabilityValue)!; // max for parallel part
 
                 return schemeReliability;
             }
@@ -40,10 +44,10 @@ internal class Program
         // push 2 new branches
         if (branchList[currentIndex] is not null)
         {
-            var branch_0 = createBranch(branchList[currentIndex]!, fixedBits[currentNodeIndex-1], 0, 0, C);
+            var branch_0 = createBranch(branchList[currentIndex]!, fixedBits[currentNodeIndex], 0, 0, C);
             if (branch_0 is not null)
             {
-                lowerReliabilityEstimate1 = CalculateRelibilityForConfig(myScheme!, branch_0, numberOfNodes)!.Reliability;
+                lowerReliabilityEstimate1 = CalculateRelibilityForConfig(myScheme!, branch_0, numberOfNodes)!.ReliabilityValue;
 
                 List<double> reliabilities = new List<double>();
                 for (int i = 0; i < TRIALS; i++)
@@ -51,7 +55,7 @@ internal class Program
                     var node = CalculateRelibilityForConfig(myScheme!, branch_0, numberOfNodes);
                     if (node is not null)
                     {
-                        reliabilities.Add(node.Reliability);
+                        reliabilities.Add(node.ReliabilityValue);
                     }
                 }
 
@@ -61,7 +65,7 @@ internal class Program
             //Console.WriteLine(idx);
             var additionalCost = myScheme!.scheme.Values.SelectMany(x => x).Where(x => x.ID == currentNodeIndex).First().Cost;
 
-            var branch_1 = createBranch(branchList[currentIndex]!, fixedBits[currentNodeIndex-1], 1, additionalCost, C);
+            var branch_1 = createBranch(branchList[currentIndex]!, fixedBits[currentNodeIndex], 1, additionalCost, C);
             if (branch_1 is not null)
             {
                 List<double> reliabilities2 = new List<double>();
@@ -70,12 +74,12 @@ internal class Program
                     var node = CalculateRelibilityForConfig(myScheme, branch_1, numberOfNodes);
                     if (node is not null)
                     {
-                        reliabilities2.Add(node.Reliability);
+                        reliabilities2.Add(node.ReliabilityValue);
                     }
                 }
                 upperReliabilityEstim2 = reliabilities2.Average();
 
-                lowerReliabilityEstimate2 = CalculateRelibilityForConfig(myScheme, branch_1, numberOfNodes)!.Reliability;
+                lowerReliabilityEstimate2 = CalculateRelibilityForConfig(myScheme, branch_1, numberOfNodes).ReliabilityValue;
 
 
                 // choose to push branch
@@ -131,6 +135,8 @@ internal class Program
             res[bitIndex] = r.Next(0, 2);
         }
 
+        Console.WriteLine("Rand Conf: " + string.Join("", res));
+        
         return res;
     }
 
@@ -228,11 +234,16 @@ internal class Program
         var myScheme = new Scheme(scheme, C);
         int numberOfNodes = myScheme.scheme.Values.Sum(list => list.Count);
 
+        var r = new Random();
 
         foreach (var chain in myScheme.scheme.Values)
-            chain.AsParallel().ForAll(node => node.Reliability = node.CalculateNodeReliability(node.hasExtra ? 1 : 0));
+            chain.AsParallel().ForAll(node =>
+            {
+                var randVal = r.NextDouble();
+                node.CalculateNodeReliability(randVal);
+            });
 
-        var r = new Random();
+        
         var fixedBits = Enumerable.Range(0, numberOfNodes)
                                         .Take(numberOfNodes)
                                         .OrderBy(i => Guid.NewGuid())

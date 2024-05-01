@@ -10,7 +10,10 @@
         public bool hasExtra { get; set; } = false;
 
         public double Reliability = 0;
-
+        public double ReliabilityExtra = 0;
+        
+        public double ReliabilityValue = -9999;
+        
         public Node(long iD, double lambdaT, double lambdaTau, double cost)
         {
             ID = iD;
@@ -19,13 +22,11 @@
             Cost = cost;
         }
 
-        public double CalculateNodeReliability(int xij)
+        public void CalculateNodeReliability(double randVal)
         {
-            var randT = new Random();
-            var randTau = new Random();
-            double TimeToLive = LambdaT * Math.Log(1 / (1 - randT.NextDouble()));
-            double TimeToLiveExtra = xij * LambdaTau * Math.Log(1 / (1 - randTau.NextDouble()));
-            return TimeToLive + TimeToLiveExtra;
+            Reliability = LambdaT * Math.Log(1 / (1 - randVal));
+            var timeToLiveExtra = LambdaTau * Math.Log(1 / (1 - randVal));
+            ReliabilityExtra = Reliability + timeToLiveExtra;
         }
     }
 }
