@@ -1,22 +1,9 @@
 ﻿using AppLogic;
+using System;
 using System.Numerics;
 
 internal class Program
 {
-    static int[] GenerateRandomConfigWithFixedBits(Dictionary<int, ReservedNode> fixedBits, int numberOfBits)
-    {
-        int[] res = new int[numberOfBits];
-        var indexes = new HashSet<int>(Enumerable.Range(0, numberOfBits)).Except(fixedBits.Keys);
-        var r = new Random();
-
-        foreach (int bitIndex in indexes)
-        {
-            res[bitIndex] = r.Next(0, 2);
-        }
-
-        return res;
-    }
-
     static Node? CalculateRelibilityForConfig(Scheme scheme, Dictionary<int, ReservedNode> branch, int numberOfNodes)
     {
         while (true)
@@ -43,6 +30,81 @@ internal class Program
         }
     }
 
+    static List<Dictionary<int, ReservedNode>> checkBranch(Scheme? myScheme, List<Dictionary<int, ReservedNode>?> branchList,
+        double C, int numberOfNodes, List<int> fixedBits, int currentNodeIndex, int currentIndex)
+    {
+        const int TRIALS = 1000;
+        double lowerReliabilityEstimate1 = 0, lowerReliabilityEstimate2 = 0;
+        double upperReliabilityEstim1 = 100, upperReliabilityEstim2 = 100;
+
+        // push 2 new branches
+        if (branchList[currentIndex] is not null)
+        {
+            var branch_0 = createBranch(branchList[currentIndex]!, fixedBits[currentNodeIndex-1], 0, 0, C);
+            if (branch_0 is not null)
+            {
+                lowerReliabilityEstimate1 = CalculateRelibilityForConfig(myScheme!, branch_0, numberOfNodes)!.Reliability;
+
+                List<double> reliabilities = new List<double>();
+                for (int i = 0; i < TRIALS; i++)
+                {
+                    var node = CalculateRelibilityForConfig(myScheme!, branch_0, numberOfNodes);
+                    if (node is not null)
+                    {
+                        reliabilities.Add(node.Reliability);
+                    }
+                }
+
+                upperReliabilityEstim1 = reliabilities.Average();
+            }
+
+            //Console.WriteLine(idx);
+            var additionalCost = myScheme!.scheme.Values.SelectMany(x => x).Where(x => x.ID == currentNodeIndex).First().Cost;
+
+            var branch_1 = createBranch(branchList[currentIndex]!, fixedBits[currentNodeIndex-1], 1, additionalCost, C);
+            if (branch_1 is not null)
+            {
+                List<double> reliabilities2 = new List<double>();
+                for (int i = 0; i < TRIALS; i++)
+                {
+                    var node = CalculateRelibilityForConfig(myScheme, branch_1, numberOfNodes);
+                    if (node is not null)
+                    {
+                        reliabilities2.Add(node.Reliability);
+                    }
+                }
+                upperReliabilityEstim2 = reliabilities2.Average();
+
+                lowerReliabilityEstimate2 = CalculateRelibilityForConfig(myScheme, branch_1, numberOfNodes)!.Reliability;
+
+
+                // choose to push branch
+                if (Math.Max(lowerReliabilityEstimate1, lowerReliabilityEstimate2) <=
+                    Math.Min(upperReliabilityEstim1, upperReliabilityEstim2))
+                {
+                    branchList[2 * currentIndex + 1] = branch_0;
+                    branchList[2 * currentIndex + 2] = branch_1;
+                    //branchList[currentIndex] = null;
+                }
+                else
+                {
+                    branchList[2 * currentIndex + 1] = null;
+                    branchList[2 * currentIndex + 2] = null;
+                }
+
+                
+            }
+        }
+        else
+        {
+            branchList[2 * currentIndex + 1] = null;
+            branchList[2 * currentIndex + 2] = null;
+            //branchList[currentIndex] = null;
+        }
+ 
+        return branchList!;
+    }
+
     static Dictionary<int, ReservedNode>? createBranch(Dictionary<int, ReservedNode> branch, int index, int bit, double cost, double C)
     {
         var currentBudget = branch.Where(x => x.Value.Bit == 1).Sum(x => x.Value.Budget);
@@ -58,89 +120,38 @@ internal class Program
         }
         return null;
     }
-
-    static Stack<Dictionary<int, ReservedNode>> checkBranch(Scheme? myScheme, Stack<Dictionary<int, ReservedNode>> branchStack,
-        double C, int numberOfNodes, List<int> fixedBits)
+    static int[] GenerateRandomConfigWithFixedBits(Dictionary<int, ReservedNode> fixedBits, int numberOfBits)
     {
-        int idx = 0;
-        const int TRIALS = 1000;
-        double lowerReliabilityEstimate1 = 0, lowerReliabilityEstimate2 = 0;
-        double upperReliabilityEstim1 = 1, upperReliabilityEstim2 = 1;
-        double fixedBudget = 0;
-        Console.WriteLine(idx);
+        int[] res = new int[numberOfBits];
+        var indexes = new HashSet<int>(Enumerable.Range(0, numberOfBits)).Except(fixedBits.Keys);
+        var r = new Random();
 
-        while (C >= fixedBudget && idx < numberOfNodes && branchStack.Count > 0)
+        foreach (int bitIndex in indexes)
         {
-            idx++;
-            // printStack(branchStack);
-            // pop current brunch and push 2 new branches
-            var baseBrunch = branchStack.Pop();
-
-            var branch_1 = createBranch(baseBrunch, fixedBits[idx], 0, 0, C);
-            if (branch_1 is not null)
-            {
-                branchStack.Push(branch_1);
-
-                lowerReliabilityEstimate1 = CalculateRelibilityForConfig(myScheme!, branch_1, numberOfNodes)!.Reliability;
-
-                List<double> reliabilities = new List<double>();
-                for (int i = 0; i < TRIALS; i++)
-                {
-                    var node = CalculateRelibilityForConfig(myScheme!, branch_1, numberOfNodes);
-                    if (node is not null)
-                    {
-                        reliabilities.Add(node.Reliability);
-                    }
-                }
-
-                upperReliabilityEstim1 = reliabilities.Average();
-                //branchStack.Push(branch_1);
-            }
-
-            //Console.WriteLine(idx);
-            var additionalCost = myScheme!.scheme.Values.SelectMany(x => x).Where(x => x.ID == idx + 1).First().Cost;
-
-            var branch_2 = createBranch(baseBrunch, fixedBits[idx], 1, additionalCost, C);
-            if (branch_2 is not null)
-            {
-                branchStack.Push(branch_2);
-                List<double> reliabilities2 = new List<double>();
-                for (int i = 0; i < TRIALS; i++)
-                {
-                    var node = CalculateRelibilityForConfig(myScheme, branch_2, numberOfNodes);
-                    if (node is not null)
-                    {
-                        reliabilities2.Add(node.Reliability);
-                    }
-                }
-                upperReliabilityEstim2 = reliabilities2.Average();
-
-                lowerReliabilityEstimate2 = CalculateRelibilityForConfig(myScheme, branch_2, numberOfNodes)!.Reliability;
-
-
-                // choose to push branch
-                if (Math.Max(lowerReliabilityEstimate1, lowerReliabilityEstimate2) <=
-                   Math.Min(upperReliabilityEstim1, upperReliabilityEstim2))
-                {
-                    fixedBudget += additionalCost;
-                    branchStack.Push(branch_2);
-                }
-
-            }
+            res[bitIndex] = r.Next(0, 2);
         }
-        return branchStack;
+
+        return res;
     }
 
-    static void printStack(Stack<Dictionary<int, ReservedNode>> stack)
+    static void printList(List<Dictionary<int, ReservedNode>> list)
     {
-        while (stack.Count > 0)
+        Console.WriteLine("#########################################################");
+        foreach (var branch in list)
         {
-            var branch = stack.Pop();
-            foreach (var elem in branch)
+            if (branch != null)
             {
-                Console.WriteLine($"{elem.Key}\t | {elem.Value.Bit} -> {elem.Value.Budget}");
+                foreach (var elem in branch)
+                {
+                    Console.WriteLine($"{elem.Key}\t | {elem.Value.Bit} -> {elem.Value.Budget}");
+                }
+
+                Console.WriteLine();
             }
+
+            
         }
+        Console.WriteLine("#########################################################");
     }
 
     private static void Main(string[] args)
@@ -196,30 +207,35 @@ internal class Program
                                         .Take(numberOfNodes)
                                         .OrderBy(i => Guid.NewGuid())
                                         .ToList();
-
-        int idx = 0;
-
-        var additionalCost = myScheme.scheme.Values.SelectMany(x => x).Where(x => x.ID == idx + 1).First().Cost;
-        var branch1 = createBranch(new Dictionary<int, ReservedNode>(), fixedBits[idx], 0, 0, C);
-        var branch2 = createBranch(new Dictionary<int, ReservedNode>(), fixedBits[idx], 1, additionalCost, C); //new Dictionary<int, ReservedNode>();
+        int currentNodeIndex = 1;
+        var additionalCost = myScheme.scheme.Values.SelectMany(x => x).Where(x => x.ID == currentNodeIndex).First().Cost;
 
 
-        Stack<Dictionary<int, ReservedNode>> branchStack = new Stack<Dictionary<int, ReservedNode>>();
+        List<Dictionary<int, ReservedNode>> branchList = new List<Dictionary<int, ReservedNode>>(new Dictionary<int, ReservedNode>[(long)(Math.Pow(2, numberOfNodes+1)+1)]);
 
-
-        branchStack.Push(branch1!);
-        if (branch1 is not null)
+        // level 0
+        branchList[0] = new Dictionary<int, ReservedNode>() 
         {
-            branchStack = checkBranch(myScheme, branchStack, C, numberOfNodes, fixedBits);
-            printStack(branchStack);
-        }
+            {
+                0, new ReservedNode() { Bit = -1, Budget = 0 }
+            } 
+        }; 
 
-        branchStack.Clear();
-        branchStack.Push(branch2!);
-        if (branch2 is not null)
+        // level 1
+        branchList[1] = createBranch(new Dictionary<int, ReservedNode>(), fixedBits[currentNodeIndex - 1], 0, 0, C)!;
+        branchList[2] = createBranch(new Dictionary<int, ReservedNode>(), fixedBits[currentNodeIndex - 1], 1, additionalCost, C)!;
+
+        // level 1..numberOfNodes
+        for(currentNodeIndex = 1; currentNodeIndex < numberOfNodes; currentNodeIndex++)
         {
-            branchStack = checkBranch(myScheme, branchStack, C, numberOfNodes, fixedBits);
-            printStack(branchStack);
-        }
+            Console.WriteLine(currentNodeIndex);
+            for (int h = 0; h < Math.Pow(2, currentNodeIndex); h++)
+            {
+                var currentChildIndex = 2 * (currentNodeIndex - 1) + 1 + h;
+                //Console.WriteLine($"Child Index = {currentChildIndex}");
+                branchList = checkBranch(myScheme, branchList!, C, numberOfNodes, fixedBits, currentNodeIndex, currentChildIndex);
+            }
+            printList(branchList);
+        }     
     }
 }
