@@ -154,8 +154,38 @@ internal class Program
         Console.WriteLine("#########################################################");
     }
 
+    private const string ResDir = "./level-logs/";
+    static void writeList(List<Dictionary<int, ReservedNode>> list, int level)
+    {
+        var logFilePath = Path.Combine(ResDir, $"level-{level}.txt");
+
+        var texts = new List<string>();
+        
+        foreach (var branch in list)
+        {
+            if (branch != null)
+            {
+                foreach (var elem in branch)
+                {
+                    texts.Add($"{elem.Key}\t | {elem.Value.Bit} -> {elem.Value.Budget}");
+                }
+
+                texts.Add($"");
+            }
+        }
+        
+        File.WriteAllText(logFilePath, string.Join("\n", texts));
+    }
+
     private static void Main(string[] args)
     {
+        if (Directory.Exists(ResDir))
+        {
+            Directory.Delete(ResDir, true);
+        }
+
+        Directory.CreateDirectory(ResDir);
+        
         Dictionary<string, List<Node>> scheme = new Dictionary<string, List<Node>>()
         {
             ["1"] = new List<Node>() {
@@ -235,7 +265,8 @@ internal class Program
                 //Console.WriteLine($"Child Index = {currentChildIndex}");
                 branchList = checkBranch(myScheme, branchList!, C, numberOfNodes, fixedBits, currentNodeIndex, currentChildIndex);
             }
-            printList(branchList);
+            //printList(branchList);
+            writeList(branchList, currentNodeIndex);
         }     
     }
 }
