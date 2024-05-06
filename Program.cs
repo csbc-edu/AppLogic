@@ -167,7 +167,6 @@ internal partial class Program
         double? lowerReliabilityEstimate0 = null, lowerReliabilityEstimate1 = null;
         double? upperReliabilityEstim0 = null, upperReliabilityEstim1 = null;
         var parentNode = branchList.LastOrDefault();
-        currentLevel = 1;
         for (nextNodeIdx = 0; nextNodeIdx < fixedBits.Count; nextNodeIdx++)
         {
             //Console.WriteLine($"{currentLevel} -> {parentNode!.ToString()}");
