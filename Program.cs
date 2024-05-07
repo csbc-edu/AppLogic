@@ -1,8 +1,5 @@
 ﻿using AppLogic;
-using System;
-using System.Numerics;
-using System.Reflection.Emit;
-using System.Text.Encodings.Web;
+using System;   
 
 internal partial class Program
 {
@@ -39,17 +36,14 @@ internal partial class Program
 
     static LeafNode? createBranch(LeafNode parentBranch, int index, int bit, double cost, double C)
     {
-        if (parentBranch.Cost + cost < C)
+        if (parentBranch.TotalCost + cost <= C)
         {
-            var updatedBranch = parentBranch;
+            var updatedBranch = new LeafNode(parentBranch.Branch, parentBranch.Level + 1, parentBranch.TotalCost + cost, parentBranch);
             updatedBranch.Branch[index] = new ReservedNode()
             {
                 Bit = bit,
                 Budget = cost
             };
-            updatedBranch.Cost += cost;
-            updatedBranch.Level++;
-            updatedBranch.Parent = parentBranch;
 
             return updatedBranch;
         }
@@ -61,11 +55,16 @@ internal partial class Program
         var indexes = new HashSet<int>(Enumerable.Range(0, numberOfBits)).Except(fixedBits.Keys);
         var r = new Random();
 
+        foreach (var bit in fixedBits) {
+            if(bit.Key != -1)
+                res[bit.Key] = bit.Value.Bit;
+        }
+
         foreach (int bitIndex in indexes)
         {
             res[bitIndex] = r.Next(0, 2);
         }
-        
+    
         return res;
     }
 
@@ -134,7 +133,7 @@ internal partial class Program
                 }
         };
 
-        double C = 200.0;      // all = 550      
+        double C = 180.0;      // all = 550      
         var myScheme = new Scheme(scheme, C);
         int numberOfNodes = myScheme.scheme.Values.Sum(list => list.Count);
 
@@ -152,6 +151,7 @@ internal partial class Program
                                         .Take(numberOfNodes)
                                         .OrderBy(i => Guid.NewGuid())
                                         .ToList();
+
         
         fixedBits.ForEach(x => Console.Write($"{x}  "));// (fixedBits.ToString());
         List<LeafNode> branchList = new List<LeafNode>();
@@ -161,39 +161,50 @@ internal partial class Program
         int currentLevel = 0;
         int nextNodeIdx = 0;
         // adds fictitious node to start iterations
-        branchList.Add(new LeafNode(new Dictionary<int, ReservedNode>(), currentLevel, c:0, null));
+        var fictBranch = new Dictionary<int, ReservedNode>() {{
+            -1, new ReservedNode()
+            {
+                Bit = -1,
+                Budget = 0
+            }
+        } };
+        branchList.Add(new LeafNode(fictBranch, currentLevel, 0, null));
 
         const int TRIALS = 1000;
         double? lowerReliabilityEstimate0 = null, lowerReliabilityEstimate1 = null;
         double? upperReliabilityEstim0 = null, upperReliabilityEstim1 = null;
-        var parentNode = branchList.LastOrDefault();
+        var parentNode = branchList.Last();
+
         for (nextNodeIdx = 0; nextNodeIdx < fixedBits.Count; nextNodeIdx++)
         {
-            //Console.WriteLine($"{currentLevel} -> {parentNode!.ToString()}");
-            if (parentNode is not null)
-            {
-                while (parentNode is not null && parentNode.Level != currentLevel - 1)
-                {
-                    Console.WriteLine($"{currentLevel} -> {parentNode.ToString()}");
-                    parentNode = parentNode.Parent;
-                }
-                
-                // find leaf that could be replaced (parent)                       
-                currentLevel = parentNode!.Level;                   
-                              
-            }
             /*
-            else
+            if (parentNode is not null && parentNode.Level == fixedBits.Count - 1)
             {
-                writeList(branchList, currentLevel);
-            }*/
                 
+                Console.WriteLine($"{parentNode.Level} -> {parentNode}");
+                parentNode = parentNode.Parent;
+                branchList.Remove( parentNode );
 
-
+                
+                while (parentNode is not null && parentNode!.Level != currentLevel - 1)
+                {
+                    
+                    parentNode = parentNode.Parent;
+                    //parentNode!.Level = currentLevel;
+                    //nextNodeIdx--;
+                    currentLevel = parentNode!.Level;
+                }
+            }*/
             
-           
+            
             if (parentNode is not null)
-            {
+            {              
+                currentLevel = parentNode.Level + 1;
+                branchList.Remove(parentNode);
+
+                foreach (var elem in branchList)
+                    Console.WriteLine($"{currentLevel} -> {parentNode}");
+
                 // create branch with next 0
                 var branch_0 = createBranch(parentNode, fixedBits[nextNodeIdx], 0, 0, C);
                 if (branch_0 is not null)  // calculate estimates for branch+0
@@ -233,34 +244,38 @@ internal partial class Program
                     lowerReliabilityEstimate1 = CalculateRelibilityForConfig(myScheme, branch_1.Branch, numberOfNodes)!.ReliabilityValue;
                 }
 
-                Console.WriteLine($"{lowerReliabilityEstimate0}, {lowerReliabilityEstimate1}\t{upperReliabilityEstim0}, {upperReliabilityEstim1}");
+                
 
+                Console.WriteLine($"{lowerReliabilityEstimate0}, {lowerReliabilityEstimate1}\t{upperReliabilityEstim0}, {upperReliabilityEstim1}");
+                
                 if (lowerReliabilityEstimate0 is not null && lowerReliabilityEstimate1 is not null
                     && upperReliabilityEstim0 is not null && upperReliabilityEstim1 is not null)
                 {
                     if (Math.Max((double)lowerReliabilityEstimate0, (double)lowerReliabilityEstimate1) <=
                         Math.Min((double)upperReliabilityEstim0, (double)upperReliabilityEstim1))
                     {
-                        branchList.Remove(parentNode);
-                        branchList.Add(branch_0!);
-                        branchList.Add(branch_1!);
+                        if (branch_0 is not null)
+                            branchList.Add(branch_0!);
+                        
+                        if (branch_1 is not null)
+                            branchList.Add(branch_1!);
 
                         // choose next parentNode
-                        if (upperReliabilityEstim1 > upperReliabilityEstim0)
-                        {
-                            parentNode = branch_1;
-                        }
-                        else
-                        {
-                            parentNode = branch_0;
-                        }
 
-                        currentLevel++;
+                        parentNode = upperReliabilityEstim1 >= upperReliabilityEstim0 ? new LeafNode(branch_1!) : new LeafNode(branch_0!);
+                        //parentNode!.Level = currentLevel;
                     }
+                    else
+                    {
+                        nextNodeIdx++;
+                    }
+                    //Console.WriteLine($"{currentLevel} -> {parentNode}");
                 }
                 else
-                    currentLevel--;
+                {
+                    nextNodeIdx++;
+                }
             }
-        }       
+        }
     }
 }
