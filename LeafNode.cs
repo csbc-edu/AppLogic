@@ -1,19 +1,18 @@
-﻿internal partial class Program
+﻿using AppLogic;
+
+internal partial class Program
 {
     class LeafNode
     {
-        public Dictionary<int, ReservedNode> Branch { get; set; }
+        public Dictionary<Key, ReservedNode> Branch { get; set; }
         public int Level { get; set; }
         public double TotalCost { get; set; }
 
-        public LeafNode? Parent = null;
-
-        public LeafNode(Dictionary<int, ReservedNode> b, int l, double c, LeafNode? p = null)
+        public LeafNode(Dictionary<Key, ReservedNode> b, int l, double c)
         {
             Branch = copyBranch(b);
             Level = l;
             TotalCost = c;
-            Parent = p;
         }
 
         public LeafNode(LeafNode node)
@@ -21,12 +20,11 @@
             Branch = copyBranch(node.Branch);
             Level = node.Level;
             TotalCost = node.TotalCost;
-            Parent = node.Parent;
         }
 
-        public Dictionary<int, ReservedNode> copyBranch(Dictionary<int, ReservedNode> dict)
+        public Dictionary<Key, ReservedNode> copyBranch(Dictionary<Key, ReservedNode> dict)
         {
-            var res = new Dictionary<int, ReservedNode>();
+            var res = new Dictionary<Key, ReservedNode>();
             foreach (var b in dict)
             {
                 var value = dict[b.Key];
@@ -38,17 +36,17 @@
             }
             return res;
         }
-        /*
+        
         public override string? ToString()
         {
             string text = "";
             foreach (var elem in Branch)
             {
-                text += $"{elem.Key}\t | {elem.Value.Bit} -> {elem.Value.Budget}\n";
+                text += $"{(elem.Key.Id, elem.Key.Bit)}\t | {elem.Value.Bit} -> {elem.Value.Budget}\n";
             }
             text += $"TotalCost = {TotalCost}\tLevel = {Level}\n";
 
             return text;
-        }*/
+        }
     }
 }

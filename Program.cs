@@ -1,9 +1,10 @@
 ﻿using AppLogic;
-using System;   
+using System;
+using System.Collections.Immutable;
 
 internal partial class Program
 {
-    static Node? CalculateRelibilityForConfig(Scheme scheme, Dictionary<int, ReservedNode> branch, int numberOfNodes)
+    static Node? CalculateRelibilityForConfig(Scheme scheme, Dictionary<Key, ReservedNode> branch, int numberOfNodes)
     {
         while (true)
         {
@@ -38,8 +39,8 @@ internal partial class Program
     {
         if (parentBranch.TotalCost + cost <= C)
         {
-            var updatedBranch = new LeafNode(parentBranch.Branch, parentBranch.Level + 1, parentBranch.TotalCost + cost, parentBranch);
-            updatedBranch.Branch[index] = new ReservedNode()
+            var updatedBranch = new LeafNode(parentBranch.Branch, parentBranch.Level + 1, parentBranch.TotalCost + cost);
+            updatedBranch.Branch[new Key(index, bit)] = new ReservedNode()
             {
                 Bit = bit,
                 Budget = cost
@@ -49,15 +50,16 @@ internal partial class Program
         }
         return null;
     }
-    static int[] GenerateRandomConfigWithFixedBits(Dictionary<int, ReservedNode> fixedBits, int numberOfBits)
+    static int[] GenerateRandomConfigWithFixedBits(Dictionary<Key, ReservedNode> fixedBits, int numberOfBits)
     {
         int[] res = new int[numberOfBits];
-        var indexes = new HashSet<int>(Enumerable.Range(0, numberOfBits)).Except(fixedBits.Keys);
+
+        var indexes = new HashSet<int>(Enumerable.Range(0, numberOfBits)).Except(fixedBits.Keys.Select(x => x.Id));
         var r = new Random();
 
         foreach (var bit in fixedBits) {
-            if(bit.Key != -1)
-                res[bit.Key] = bit.Value.Bit;
+            if(bit.Key.Id != -1)
+                res[bit.Key.Id] = bit.Value.Bit;
         }
 
         foreach (int bitIndex in indexes)
@@ -158,124 +160,96 @@ internal partial class Program
 
         Console.WriteLine();
 
-        int currentLevel = 0;
-        int nextNodeIdx = 0;
+        
         // adds fictitious node to start iterations
-        var fictBranch = new Dictionary<int, ReservedNode>() {{
-            -1, new ReservedNode()
+        var fictBranch = new Dictionary<Key, ReservedNode>() {{
+            new Key(-1, 0), new ReservedNode()
             {
                 Bit = -1,
                 Budget = 0
             }
         } };
-        branchList.Add(new LeafNode(fictBranch, currentLevel, 0, null));
-
+        branchList.Add(new LeafNode(fictBranch, 0, 0));
+        int currentLevel = 0;
         const int TRIALS = 1000;
-        double? lowerReliabilityEstimate0 = null, lowerReliabilityEstimate1 = null;
-        double? upperReliabilityEstim0 = null, upperReliabilityEstim1 = null;
+
+        
         var parentNode = branchList.Last();
+        foreach (var elem in branchList)
+            Console.WriteLine(elem.ToString());
 
-        for (nextNodeIdx = 0; nextNodeIdx < fixedBits.Count; nextNodeIdx++)
+
+        while (currentLevel < numberOfNodes)
         {
-            /*
-            if (parentNode is not null && parentNode.Level == fixedBits.Count - 1)
+            double? lowerReliabilityEstimate0 = null, lowerReliabilityEstimate1 = null;
+            double? upperReliabilityEstim0 = null, upperReliabilityEstim1 = null;
+
+            branchList.Remove(parentNode);
+            foreach (var elem in branchList)
+                Console.WriteLine(elem.ToString());
+            // create branch with next 0
+            var branch_0 = createBranch(parentNode, fixedBits[currentLevel], 0, 0, C);
+            if (branch_0 is not null)  // calculate estimates for branch+0
             {
-                
-                Console.WriteLine($"{parentNode.Level} -> {parentNode}");
-                parentNode = parentNode.Parent;
-                branchList.Remove( parentNode );
+                lowerReliabilityEstimate0 = CalculateRelibilityForConfig(myScheme!, branch_0.Branch, numberOfNodes)!.ReliabilityValue;
 
-                
-                while (parentNode is not null && parentNode!.Level != currentLevel - 1)
+                List<double> reliabilities = new List<double>();
+                for (int i = 0; i < TRIALS; i++)
                 {
-                    
-                    parentNode = parentNode.Parent;
-                    //parentNode!.Level = currentLevel;
-                    //nextNodeIdx--;
-                    currentLevel = parentNode!.Level;
-                }
-            }*/
-            
-            
-            if (parentNode is not null)
-            {              
-                currentLevel = parentNode.Level + 1;
-                branchList.Remove(parentNode);
-
-                foreach (var elem in branchList)
-                    Console.WriteLine($"{currentLevel} -> {parentNode}");
-
-                // create branch with next 0
-                var branch_0 = createBranch(parentNode, fixedBits[nextNodeIdx], 0, 0, C);
-                if (branch_0 is not null)  // calculate estimates for branch+0
-                {
-                    lowerReliabilityEstimate0 = CalculateRelibilityForConfig(myScheme!, branch_0.Branch, numberOfNodes)!.ReliabilityValue;
-
-                    List<double> reliabilities = new List<double>();
-                    for (int i = 0; i < TRIALS; i++)
+                    var node = CalculateRelibilityForConfig(myScheme!, branch_0.Branch, numberOfNodes);
+                    if (node is not null)
                     {
-                        var node = CalculateRelibilityForConfig(myScheme!, branch_0.Branch, numberOfNodes);
-                        if (node is not null)
-                        {
-                            reliabilities.Add(node.ReliabilityValue);
-                        }
+                        reliabilities.Add(node.ReliabilityValue);
                     }
-
-                    upperReliabilityEstim0 = reliabilities.Average();
                 }
 
-                // try to create branch with next 1
-                var additionalCost = myScheme!.scheme.Values.SelectMany(x => x).Where(x => x.ID == fixedBits[nextNodeIdx] + 1).First().Cost;
-
-                var branch_1 = createBranch(parentNode, fixedBits[nextNodeIdx], 1, additionalCost, C);
-                if (branch_1 is not null) // calculate estimates for branch+1
-                {
-                    List<double> reliabilities2 = new List<double>();
-                    for (int i = 0; i < TRIALS; i++)
-                    {
-                        var node = CalculateRelibilityForConfig(myScheme, branch_1.Branch, numberOfNodes);
-                        if (node is not null)
-                        {
-                            reliabilities2.Add(node.ReliabilityValue);
-                        }
-                    }
-                    upperReliabilityEstim1 = reliabilities2.Average();
-
-                    lowerReliabilityEstimate1 = CalculateRelibilityForConfig(myScheme, branch_1.Branch, numberOfNodes)!.ReliabilityValue;
-                }
-
-                
-
-                Console.WriteLine($"{lowerReliabilityEstimate0}, {lowerReliabilityEstimate1}\t{upperReliabilityEstim0}, {upperReliabilityEstim1}");
-                
-                if (lowerReliabilityEstimate0 is not null && lowerReliabilityEstimate1 is not null
-                    && upperReliabilityEstim0 is not null && upperReliabilityEstim1 is not null)
-                {
-                    if (Math.Max((double)lowerReliabilityEstimate0, (double)lowerReliabilityEstimate1) <=
-                        Math.Min((double)upperReliabilityEstim0, (double)upperReliabilityEstim1))
-                    {
-                        if (branch_0 is not null)
-                            branchList.Add(branch_0!);
-                        
-                        if (branch_1 is not null)
-                            branchList.Add(branch_1!);
-
-                        // choose next parentNode
-
-                        parentNode = upperReliabilityEstim1 >= upperReliabilityEstim0 ? new LeafNode(branch_1!) : new LeafNode(branch_0!);
-                        //parentNode!.Level = currentLevel;
-                    }
-                    else
-                    {
-                        nextNodeIdx++;
-                    }
-                    //Console.WriteLine($"{currentLevel} -> {parentNode}");
-                }
-                else
-                {
-                    nextNodeIdx++;
-                }
+                upperReliabilityEstim0 = reliabilities.Average();
             }
+
+            // try to create branch with next 1
+            var additionalCost = myScheme!.scheme.Values.SelectMany(x => x).Where(x => x.ID == fixedBits[currentLevel] + 1).First().Cost;
+
+            var branch_1 = createBranch(parentNode, fixedBits[currentLevel], 1, additionalCost, C);
+            if (branch_1 is not null) // calculate estimates for branch+1
+            {
+                List<double> reliabilities2 = new List<double>();
+                for (int i = 0; i < TRIALS; i++)
+                {
+                    var node = CalculateRelibilityForConfig(myScheme, branch_1.Branch, numberOfNodes);
+                    if (node is not null)
+                    {
+                        reliabilities2.Add(node.ReliabilityValue);
+                    }
+                }
+                upperReliabilityEstim1 = reliabilities2.Average();
+
+                lowerReliabilityEstimate1 = CalculateRelibilityForConfig(myScheme, branch_1.Branch, numberOfNodes)!.ReliabilityValue;
+            }
+
+                
+
+            Console.WriteLine($"{lowerReliabilityEstimate0}, {lowerReliabilityEstimate1}\t{upperReliabilityEstim0}, {upperReliabilityEstim1}");
+                
+            if (lowerReliabilityEstimate0 is not null && lowerReliabilityEstimate1 is not null
+                && upperReliabilityEstim0 is not null && upperReliabilityEstim1 is not null)
+            {
+                //if (Math.Max((double)lowerReliabilityEstimate0, (double)lowerReliabilityEstimate1) <=
+                //    Math.Min((double)upperReliabilityEstim0, (double)upperReliabilityEstim1))
+                //{
+                    if (branch_0 is not null)
+                        branchList.Add(branch_0!);
+                        
+                    if (branch_1 is not null)
+                        branchList.Add(branch_1!);
+
+                    // choose next parentNode
+                    parentNode = upperReliabilityEstim1 >= upperReliabilityEstim0 ? new LeafNode(branch_1!) : new LeafNode(branch_0!);
+                    parentNode!.Level = currentLevel+1;
+                //}
+                //Console.WriteLine($"{currentLevel} -> {parentNode}");
+                
+            }
+            currentLevel += 1;
         }
     }
 }
