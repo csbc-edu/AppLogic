@@ -42,7 +42,7 @@ internal partial class Program
             string text = "";
             foreach (var elem in Branch)
             {
-                text += $"{(elem.Key.Id, elem.Key.Bit)}\t | {elem.Value.Bit} -> {elem.Value.Budget}\n";
+                text += $"{(elem.Key.Id, elem.Key.Bit)}\n | {elem.Value.Bit} -> {elem.Value.Budget}\n";
             }
             text += $"TotalCost = {TotalCost}\tLevel = {Level}\n";
 

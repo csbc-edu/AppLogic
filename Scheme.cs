@@ -26,7 +26,7 @@
             }
             this.CalculateBudgetForSchemeConfig();
 
-            return CalculatedBudget < this.Budget;
+            return CalculatedBudget <= this.Budget;
         }
 
         public void CalculateBudgetForSchemeConfig()

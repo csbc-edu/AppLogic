@@ -23,5 +23,6 @@ namespace AppLogic
         {
             return _impl.GetHashCode();
         }
+
     }
 }

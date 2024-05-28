@@ -12,7 +12,8 @@
         public double Reliability = 0;
         public double ReliabilityExtra = 0;
         
-        public double ReliabilityValue = -9999;
+
+        public double ReliabilityValue => hasExtra ? ReliabilityExtra : Reliability;
         
         public Node(long iD, double lambdaT, double lambdaTau, double cost)
         {
@@ -28,5 +29,6 @@
             var timeToLiveExtra = LambdaTau * Math.Log(1 / (1 - randVal));
             ReliabilityExtra = Reliability + timeToLiveExtra;
         }
+
     }
 }
